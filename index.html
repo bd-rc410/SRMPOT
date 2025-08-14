@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/L.Control.Locate.min.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title>Mapa de Identificación de Corredores Comerciales y Zona de Restricción Máxima</title>
+    </head>
+    <body>
+        <div id="map">
+        <div style="position:absolute; top:80px; left:80px; z-index:1000;">
+        <img src="img39.jpg" alt="Logo" style="max-width:15vw; height:auto; min-width:60px;">
+        <div style="position:absolute; top:350px; right: -1000px; z-index:1000;">
+        <img src="img15.png" alt="Logo" style="width:360px; height:auto;">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/L.Control.Locate.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="data/Zonaderestriccinmaxima_1.js"></script>
+        <script src="data/CorredoresComerciales_2.js"></script>
+        <script>
+        var highlightLayer;
+        function highlightFeature(e) {
+            highlightLayer = e.target;
+
+            if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+              highlightLayer.setStyle({
+                color: '#ffff00',
+              });
+            } else {
+              highlightLayer.setStyle({
+                fillColor: '#ffff00',
+                fillOpacity: 1
+              });
+            }
+            highlightLayer.openPopup();
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:26, minZoom:1
+        }).fitBounds([[14.545963530895913,-90.75024561427692],[14.568262560547529,-90.714012377789]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // add class to format popup if it contains media
+		function addClassToPopupIfMedia(content, popup) {
+			var tempDiv = document.createElement('div');
+			tempDiv.innerHTML = content;
+			if (tempDiv.querySelector('td img')) {
+				popup._contentNode.classList.add('media');
+					// Delay to force the redraw
+					setTimeout(function() {
+						popup.update();
+					}, 10);
+			} else {
+				popup._contentNode.classList.remove('media');
+			}
+		}
+        var title = new L.Control({'position':'topright'});
+        title.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+        title.update = function () {
+            this._div.innerHTML = '<h2>Mapa de Identificación de Corredores Comerciales y Zona de Restricción Máxima</h2>';
+        };
+        title.addTo(map);
+        var abstract = new L.Control({'position':'bottomleft'});
+        abstract.onAdd = function (map) {
+            this._div = L.DomUtil.create('div',
+            'leaflet-control abstract');
+            this._div.id = 'abstract'
+
+                abstract.show();
+                return this._div;
+            };
+            abstract.show = function () {
+                this._div.classList.remove("abstract");
+                this._div.classList.add("abstractUncollapsed");
+                this._div.innerHTML = 'En el presente mapa se visualiza los corredores comerciales y la zona de restricción máxima.';
+        };
+        abstract.addTo(map);
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_OSMStandard_0');
+        map.getPane('pane_OSMStandard_0').style.zIndex = 400;
+        var layer_OSMStandard_0 = L.tileLayer('http://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OSMStandard_0',
+            opacity: 1.0,
+            attribution: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors, CC-BY-SA</a>',
+            minZoom: 1,
+            maxZoom: 26,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OSMStandard_0;
+        map.addLayer(layer_OSMStandard_0);
+        function pop_Zonaderestriccinmaxima_1(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Zonaderestriccinmaxima_1_0() {
+            return {
+                pane: 'pane_Zonaderestriccinmaxima_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '15.0,3.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 3.0, 
+                fillOpacity: 0,
+                interactive: false,
+            }
+        }
+        map.createPane('pane_Zonaderestriccinmaxima_1');
+        map.getPane('pane_Zonaderestriccinmaxima_1').style.zIndex = 401;
+        map.getPane('pane_Zonaderestriccinmaxima_1').style['mix-blend-mode'] = 'normal';
+        var layer_Zonaderestriccinmaxima_1 = new L.geoJson(json_Zonaderestriccinmaxima_1, {
+            attribution: '',
+            interactive: false,
+            dataVar: 'json_Zonaderestriccinmaxima_1',
+            layerName: 'layer_Zonaderestriccinmaxima_1',
+            pane: 'pane_Zonaderestriccinmaxima_1',
+            onEachFeature: pop_Zonaderestriccinmaxima_1,
+            style: style_Zonaderestriccinmaxima_1_0,
+        });
+        bounds_group.addLayer(layer_Zonaderestriccinmaxima_1);
+        map.addLayer(layer_Zonaderestriccinmaxima_1);
+        function pop_CorredoresComerciales_2(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">id</th>\
+                        <td class="visible-with-data" id="id">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="DESCRI" colspan="2"><strong>DESCRI</strong><br />' + (feature.properties['DESCRI'] !== null ? autolinker.link(String(feature.properties['DESCRI']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_CorredoresComerciales_2_0(feature) {
+            switch(String(feature.properties['id'])) {
+                case '1':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(121,232,116,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '2':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(142,227,37,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '3':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(129,63,210,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '4':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(209,203,96,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '5':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(212,35,135,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '6':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(195,96,202,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '7':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(35,44,216,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '8':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(30,232,121,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '9':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(85,158,218,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '10':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(200,123,60,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '11':
+                    return {
+                pane: 'pane_CorredoresComerciales_2',
+                opacity: 1,
+                color: 'rgba(231,74,82,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 10.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+            }
+        }
+        map.createPane('pane_CorredoresComerciales_2');
+        map.getPane('pane_CorredoresComerciales_2').style.zIndex = 402;
+        map.getPane('pane_CorredoresComerciales_2').style['mix-blend-mode'] = 'normal';
+        var layer_CorredoresComerciales_2 = new L.geoJson(json_CorredoresComerciales_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_CorredoresComerciales_2',
+            layerName: 'layer_CorredoresComerciales_2',
+            pane: 'pane_CorredoresComerciales_2',
+            onEachFeature: pop_CorredoresComerciales_2,
+            style: style_CorredoresComerciales_2_0,
+        });
+        bounds_group.addLayer(layer_CorredoresComerciales_2);
+        map.addLayer(layer_CorredoresComerciales_2);
+        var overlaysTree = [
+            {label: 'Corredores Comerciales<br /><table><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_10.png" /></td><td>1</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_21.png" /></td><td>2</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_32.png" /></td><td>3</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_43.png" /></td><td>4</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_54.png" /></td><td>5</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_65.png" /></td><td>6</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_76.png" /></td><td>7</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_87.png" /></td><td>8</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_98.png" /></td><td>9</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_109.png" /></td><td>10</td></tr><tr><td style="text-align: center;"><img src="legend/CorredoresComerciales_2_1110.png" /></td><td>11</td></tr></table>', layer: layer_CorredoresComerciales_2},
+            {label: '<img src="legend/Zonaderestriccinmaxima_1.png" /> Zona de restricción maxima', layer: layer_Zonaderestriccinmaxima_1},
+            {label: "OSM Standard", layer: layer_OSMStandard_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: true,
+        });
+        lay.addTo(map);
+        setBounds();
+        var i = 0;
+        layer_CorredoresComerciales_2.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #000000; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_CorredoresComerciales_2'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        resetLabels([layer_CorredoresComerciales_2]);
+        map.on("zoomend", function(){
+            resetLabels([layer_CorredoresComerciales_2]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_CorredoresComerciales_2]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_CorredoresComerciales_2]);
+        });
+        </script>
+    </body>
+</html>
